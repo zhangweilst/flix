@@ -1,8 +1,8 @@
 
-CFLAGS += -ffreestanding -nostdlib -mcmodel=large \
+CFLAGS += -ffreestanding -nostdlib -mcmodel=large -fshort-wchar \
 	-fno-PIE -fno-pie -no-pie -I../include
 
-objects = startup.o output.o main.o call_wrapper.o 
+objects = startup.o main.o call_wrapper.o
 
 startup.img: startup.exec
 	strip -R .rel.dyn -R .reginfo -R .note -R .comment -R .drectve \
@@ -15,9 +15,6 @@ startup.exec: $(objects)
 
 startup.o: startup.s
 	$(AS) -o startup.o startup.s
-
-output.o: output.s
-	$(AS) -o output.o output.s
 
 main.o: ../include/efi/efi.h
 

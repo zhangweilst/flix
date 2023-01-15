@@ -1,16 +1,15 @@
 /**
  * elf2efi.c
  *
- * Convert elf object file to efi bootable image
+ * Convert elf object file to an efi bootable image
  * 
  * To fool around with the processor, we want a directly bootable efi image
- * without a bootloader. The problem is efi uses a non-standard PE32+ format,
- * and no compiler can do that directly. We also don't want to use external
- * tools like edk2 etc.
+ * without a bootloader. The problem is efi uses a non-standard PE32+ format.
+ * A cross compiler can do this, but currently don't feel like that for just
+ * several hundred lines of code.
  *
- * Most of the conversion logic comes from grub-mkimage.
- *
- * Currently we only focus on x64.
+ * The conversion logic comes from grub-mkimage, currently we only focus
+ * on x86_64.
  *
  * Other ways to do this:
  * 
@@ -27,7 +26,7 @@
 #include <assert.h>
 
 #include <elf.h>
-#include <pe32.h>
+#include "pe32.h"
 
 #define ALIGN_UP(addr, align) \
 	(((addr) + (typeof (addr)) (align) - 1) & ~((typeof (addr)) (align) - 1))
