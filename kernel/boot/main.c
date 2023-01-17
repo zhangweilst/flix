@@ -1,80 +1,109 @@
 
 #include <stdint.h>
-#include "font_16_32.h"
+#include <console.h>
+#include <ioop.h>
+#include <framebuffer.h>
 
-extern uint64_t framebuffer;
-extern uint64_t framebuffer_size;
-extern uint64_t horizontal_pixels;
-extern uint64_t vertical_pixels;
-extern uint64_t pixels_per_line;
+extern void con_init();
+extern void framebuffer_init();
+extern void spin(uint64_t t);
+extern void cpu_relax();
 
-static uint32_t *fbbase;
-static uint64_t fbsize, width, height, line;
-
-/* spin some amount of time proportional to t */
-static void spin(uint64_t t)
+char *i2a(uint64_t a)
 {
-	uint64_t i;
+	static char str[64];
+	int i, j, r;
 
-	for (i = 0; i < (t << 20); ++i);
+	i = 0;
+	do {
+		r = a % 10;
+		a = a / 10;
+		str[i++] = r + '0';
+	} while (a > 0);
+
+	str[i] = '\0';
+
+	for (j = 0, i--; j < i; j++, i--) {
+		char tmp = str[i];
+		str[i] = str[j];
+		str[j] = tmp;
+	}
+	return str;
 }
 
-static void spin_always()
+char *i2h(uint64_t a)
 {
-	while (1);
+	static char str[64];
+	int i, j, r;
+
+	i = 0;
+	do {
+		r = a % 16;
+		a = a / 16;
+		str[i++] = r > 9 ? r - 10 + 'A' : r + '0';
+	} while (a > 0);
+
+	str[i] = '\0';
+
+	for (j = 0, i--; j < i; j++, i--) {
+		char tmp = str[i];
+		str[i] = str[j];
+		str[j] = tmp;
+	}
+	return str;
 }
 
-static void fb_init()
+uint16_t pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
-	fbbase = (uint32_t *) (framebuffer);
-	fbsize = framebuffer_size;
-	width = horizontal_pixels;
-	height = vertical_pixels;
-	line = pixels_per_line;
+	uint32_t address;
+	uint32_t lbus = (uint32_t) bus;
+	uint32_t lslot = (uint32_t) slot;
+	uint32_t lfunc = (uint32_t) func;
+	uint16_t tmp = 0;
+
+	address = ((lbus << 16) | (slot << 11) | (lfunc << 8) |
+		(offset & 0xFC) | ((uint32_t) 0x80000000));
+	outl(0xCF8, address);
+	tmp = (uint16_t) ((inl(0xCFC) >> ((offset & 2) << 3)) & 0xFFFF);
+	return tmp;
 }
 
-static void clear_screen()
+uint16_t pci_get_vendor(uint8_t bus, uint8_t slot)
 {
-	uint32_t *current_addr;
+	return pci_config_read_word(bus, slot, 0, 0);
+}
 
-	for (int v = 0; v < height; ++v) {
-		current_addr = fbbase + line * v;
-		for (int h = 0; h < width; ++h) {
-			*(current_addr + h) = 0;
+void pci_enumerate()
+{
+	uint16_t bus, device;
+	uint16_t vendor;
+
+	for (bus = 0; bus < 256; ++bus) {
+		for (device = 0; device < 32; ++device) {
+			vendor = pci_get_vendor(bus, device);
+			if (vendor != 0xFFFF) {
+				con_puts("bus: 0x");
+				con_puts(i2h(bus));
+				con_puts(", device: 0x");
+				con_puts(i2h(device));
+				con_puts(", vendor: 0x");
+				con_puts(i2h(vendor));
+				con_puts("\n");
+			}
 		}
 	}
 }
 
 void kernel_entry()
 {
-	fb_init();
-	clear_screen();
+	framebuffer_init();
+	con_init();
 
-	uint32_t *current_addr;
-	uint16_t *glyph;
-	current_addr = fbbase;
-	for (int i = 0; i < 256 * 8; ++i) {
-		int horizontal = (i * 16) % width;
-		int vertical = (i * 16) / width * 32;
-		glyph = (uint16_t *) (i * 64 % (256 * 64) + font_16_32);
-		for (int j = 0; j < 32; ++j) {
-			uint16_t h = *(glyph + j);
-			uint8_t low = h & 0xff;
-			uint8_t high = (h >> 8) & 0xff;
-			for (int k = 0; k < 8; ++k) {
-				if (low & 0x80) {
-					*(current_addr + (j + vertical) * line + k + horizontal) = 0x7bcfa6;
-				}
-				low <<= 1;
-			}
-			for (int k = 8; k < 16; ++k) {
-				if (high & 0x80) {
-					*(current_addr + (j + vertical) * line + k + horizontal) = 0x7bcfa6;
-				}
-				high <<= 1;
-			}
-		}
-		spin(20);
+	for (int i = 0; i < 3600; ++i) {
+		con_puts("line: ");
+		con_puts(i2a(i + 1));
+		con_puts("\n");
 	}
-	spin_always();
+
+	cpu_relax();
 }

@@ -1,13 +1,9 @@
 
-CFLAGS += -ffreestanding -nostdlib -fPIE -fno-asynchronous-unwind-tables
-objects = boot/boot.o boot/main.o
+CFLAGS += -ffreestanding -nostdlib -fPIE -fno-asynchronous-unwind-tables \
+	-I../include
+objects := boot/boot.o boot/main.o
 
-kernel.img: kernel.lds $(objects)
-	$(CC) $(CFLAGS) -Wl,--build-id=none -Wl,-N -Wl,--no-dynamic-linker \
-		-Wl,-pie -Wl,-melf_x86_64 -Wl,-znoexecstack \
-		-Wl,--no-ld-generated-unwind-info \
-		-T kernel.lds \
-		-o kernel.img $(objects)
+all: $(objects)
 
 boot/boot.o: boot/boot.s
 	$(AS) -o boot/boot.o boot/boot.s
