@@ -12,6 +12,7 @@ EFI_BOOT_SERVICES *BS;
 #define PAGE_SIZE (1 << 12)
 
 extern void jump_to_kernel(UINT64);
+extern void cpu_relax();
 
 static CHAR16 *
 a2u(char *str)
@@ -90,7 +91,7 @@ output_string_ln(CHAR16 *str)
 static void
 sleep(int seconds)
 {
-	uefi_call_wrapper(ST->BootServices->Stall, 1, (UINTN) seconds * 1000);
+	uefi_call_wrapper(ST->BootServices->Stall, 1, (UINTN) seconds * 1000000);
 }
 
 static void
@@ -466,6 +467,50 @@ fill_video_params(void *kmem, EFI_GRAPHICS_OUTPUT_PROTOCOL *gop)
 	head[4] = gop->Mode->Info->PixelsPerScanLine;
 }
 
+int struct_cmp(void *a, void *b, int size) {
+	int i;
+	char *x, *y;
+
+	x = (char *) a;
+	y = (char *) b;
+	for (i = 0; i < size; ++i) {
+		if (x[i] == y[i]) {
+			continue;
+		}
+		return x[i] - y[i];
+	}
+
+	return 0;
+}
+
+void
+fill_acpi_params(void *kmem)
+{
+	uint64_t *head = (uint64_t *) kmem;
+	EFI_GUID acpi_1 = ACPI_TABLE_GUID;
+	EFI_GUID acpi_2 = ACPI_20_TABLE_GUID;
+	int i;
+
+	head[5] = 0;
+	for (i = 0; i < ST->NumberOfTableEntries; ++i) {
+		EFI_GUID guid = ST->ConfigurationTable[i].VendorGuid;
+		if (!struct_cmp(&guid, &acpi_1, sizeof(EFI_GUID))) {
+			head[5] = 1;
+			head[6] = (uint64_t) (ST->ConfigurationTable[i].VendorTable);
+		}
+		if (!struct_cmp(&guid, &acpi_2, sizeof(EFI_GUID))) {
+			head[5] = 2;
+			head[6] = (uint64_t) (ST->ConfigurationTable[i].VendorTable);
+			break;
+		}
+	}
+
+	if (head[5] == 0) {
+		output_string_ln(L"Unable to locate acpi table rsdp\n\r");
+		cpu_relax();
+	}
+}
+
 void
 efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *efi_system_table)
 {
@@ -477,6 +522,7 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *efi_system_table)
 	EFI_FILE_HANDLE volume;
 	UINT64 kernel_address;
 	UINT64 kernel_entry;
+	int i, j;
 
 	uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 	gop = video_setup();
@@ -499,6 +545,7 @@ efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *efi_system_table)
 	output_string_ln(i2h(kernel_address));
 
 	fill_video_params((void *) kernel_address, gop);
+	fill_acpi_params((void *) kernel_address);
 
 	output_string_ln(L"jumping to kernel ...");
 

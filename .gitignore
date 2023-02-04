@@ -1,7 +1,13 @@
 
 *.o
+*.a
 *.img
 *.exec
-elf2efi
-compile_commands.json
+*.cmd
+*.d
 .*/
+
+*elf2efi
+utils/get_psf_array
+compile_commands.json
+

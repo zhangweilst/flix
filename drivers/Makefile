@@ -1,26 +1,7 @@
 
-CFLAGS += -ffreestanding -nostdlib -fPIE -fno-asynchronous-unwind-tables \
-	-I../include
-SUBDIRS := fonts
-SUBCLEAN := $(addsuffix .clean,$(SUBDIRS))
+ccflags-y += -ffreestanding -nostdlib -fPIE -fno-asynchronous-unwind-tables
 
-objects := console.o framebuffer.o
-
-all: $(objects) subdirs
-
-subdirs: $(SUBDIRS)
-
-$(SUBDIRS):
-	$(MAKE) -C $@
-
-console.o: ../include/framebuffer.h
-
-framebuffer.o:
-
-clean: $(SUBCLEAN)
-	$(RM) *.o
-
-$(SUBCLEAN): %.clean:
-	$(MAKE) -C $* clean
-
-.PHONY: clean $(SUBCLEAN) subdirs $(SUBDIRS)
+obj-y += fonts/
+obj-y += console.o
+obj-y += framebuffer.o
+obj-y += pci.o

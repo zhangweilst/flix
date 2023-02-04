@@ -1,0 +1,69 @@
+
+comma	:= ,
+quote   := "
+squote  := '
+empty	:=
+space	:= $(empty) $(empty)
+space_escape := _-_SPACE_-_
+pound := \#
+define newline
+
+
+endef
+
+###
+# Shorthand build
+# Usage:
+# $(MAKE) $(build)=dir
+build := -f scripts/Makefile.build obj
+
+dot-target = $(dir $@).$(notdir $@)
+
+escsq = $(subst $(squote),'\$(squote)',$1)
+
+###
+# Part of the if_changed condition to check whether the build command
+# has changed
+cmd-check = $(filter-out $(subst $(space),$(space_escape),$(strip $(cmd_$@))), \
+			 $(subst $(space),$(space_escape),$(strip $(cmd_$1))))
+
+make-cmd = $(call escsq,$(subst $(pound),$$(pound),$(subst $$,$$$$,$(cmd_$(1)))))
+
+###
+# real prerequisites without phony targets
+real-prereqs = $(filter-out $(PHONY), $^)
+
+###
+# Find prerequites that are newer than target or that do not exist
+newer-prereqs = $(filter-out $(PHONY),$?)
+
+###
+# Currently, always enforce FORCE prerequisite
+check-FORCE = $(if $(filter FORCE,$^),,$(error FORCE prerequisite is missing))
+
+if-changed-cond = $(newer-prereqs)$(cmd-check)$(check-FORCE)
+
+if_changed = $(if $(if-changed-cond),$(cmd_and_savecmd),@:)
+
+cmd_and_savecmd =								\
+	$(cmd_$(1));								\
+	printf '%s\n' 'cmd_$@ := $(make-cmd)' > $(dot-target).cmd
+
+###
+# Kbuild for top level, Makefile for subdirs
+kbuild-file = $(or $(wildcard $(src)/Kbuild),$(src)/Makefile)
+
+###
+# target with $(obj)/ and suffix stripped
+target-stem = $(basename $(patsubst $(obj)/%,%,$@))
+
+###
+# the real c flags for compile
+_cflags	= $(filter-out $(CFLAGS_REMOVE_$(target-stem).o), $(KBUILD_CFLAGS) \
+		$(ccflags-y) $(CFLAGS_$(target-stem).o))
+cflags	= -Wp,-MMD,$(depfile) $(_cflags)
+
+###
+# The temporary file to save gcc -MMD generated dependencies must not
+# contain a comma
+depfile = $(subst $(comma),_,$(dot-target).d)

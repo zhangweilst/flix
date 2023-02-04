@@ -10,6 +10,7 @@
 	.text
 	.globl	start, _start
 	.globl	jump_to_kernel
+	.globl	cpu_relax
 	.code64
 
 start:
@@ -19,7 +20,7 @@ _start:
 	andq	$~0xf, %rsp
 	call	efi_main
 
-	jmp	relax
+	jmp	cpu_relax
 
 jump_to_kernel:
 	jmp	*%rdi
@@ -29,6 +30,6 @@ jump_to_kernel:
 # 	none
 # output:
 #	none, never return
-relax:
+cpu_relax:
 	pause
-	jmp relax
+	jmp cpu_relax

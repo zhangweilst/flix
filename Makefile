@@ -1,32 +1,36 @@
 
 export CC := gcc
-export CFLAGS := -O2
-KCFLAGS := $(CFLAGS) -ffreestanding -nostdlib -fPIE -fno-asynchronous-unwind-tables \
-	-I../include
-SUBDIRS := utils loader kernel drivers
-SUBCLEAN := $(addsuffix .clean,$(SUBDIRS))
+export KBUILD_CFLAGS := -O2 -Iinclude/
+export OBJCOPY := objcopy
 
-all: subdirs loader.img kernel.img
+MAKEFLAGS += --no-print-directory
 
-loader.img: utils/elf2efi loader/startup.img
-	./utils/elf2efi loader/startup.img loader.img
+include scripts/Kbuild.include
 
-kobjects := kernel/boot/boot.o kernel/boot/main.o drivers/console.o \
-	drivers/framebuffer.o drivers/fonts/font_uni2_bold_18_10.o \
-	drivers/fonts/font_uni2_bold_32_16.o drivers/fonts/font_lat2_bold_32_16.o
+PHONY := all
+all: loader.img kernel.img
 
-kernel.img: kernel/kernel.lds $(kobjects)
-	$(CC) $(KCFLAGS) -Wl,--build-id=none -Wl,-N -Wl,--no-dynamic-linker \
-		-Wl,-pie -Wl,-melf_x86_64 -Wl,-znoexecstack \
-		-Wl,--no-ld-generated-unwind-info \
-		-T kernel/kernel.lds \
-		-o kernel.img $(kobjects) \
+build-dir	:= .
 
-subdirs: $(SUBDIRS)
+KCFLAGS := $(KBUILD_CFLAGS) -ffreestanding -nostdlib -fPIE
+KCFLAGS += -fno-asynchronous-unwind-tables
 
-$(SUBDIRS):
-	$(MAKE) -C $@
+KLDFLAGS := -Wl,--build-id=none -Wl,-N -Wl,--no-dynamic-linker
+KLDFLAGS += -Wl,-pie -Wl,-melf_x86_64 -Wl,-znoexecstack
+KLDFLAGS += -Wl,--no-ld-generated-unwind-info
 
+loader.img: $(build-dir)
+	./utils/elf2efi loader/startup.img loader.img >/dev/null
+
+kernel.img: $(build-dir) kernel/kernel.lds
+	$(CC) $(KCFLAGS) $(KLDFLAGS) -T kernel/kernel.lds -o kernel.img \
+	-Wl,-whole-archive built-in.a -Wl,-no-whole-archive
+
+PHONY += $(build-dir)
+$(build-dir):
+	$(MAKE) $(build)=$@ need-builtin=1
+
+PHONY += install
 install:
 	sudo modprobe nbd
 	sleep 0.2s
@@ -44,15 +48,20 @@ install:
 	sleep 0.2s
 	sudo qemu-nbd -d /dev/nbd0
 
+PHONY += run
 run:
 	sleep 0.2s
 	qemu-system-x86_64 -m 4096 -smp cpus=1 -bios /usr/share/ovmf/OVMF.fd \
 		-daemonize -enable-kvm /data1/develop/qemu/flix_x86_64.img
 
-clean: $(SUBCLEAN)
-	$(RM) *.img
+PHONY += clean
+clean:
+	find . -name "built-in.a" | xargs $(RM)
+	find . -name "*.o" | xargs $(RM)
+	find . -name "*.cmd" | xargs $(RM)
+	find . -name "*.o.d" | xargs $(RM)
+	$(RM) kernel.img loader.img
+	$(RM) loader/startup.exec loader/startup.img
+	$(RM) utils/elf2efi utils/get_psf_array
 
-$(SUBCLEAN): %.clean:
-	$(MAKE) -C $* clean
-
-.PHONY: all clean $(SUBCLEAN) subdirs $(SUBDIRS)
+.PHONY: $(PHONY)
