@@ -1,3 +1,4 @@
+CC := gcc
 
 obj-y += elf2efi
 obj-y += get_psf_array

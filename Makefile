@@ -1,5 +1,5 @@
 
-export CC := gcc
+export CC := x86_64-elf-gcc
 export KBUILD_CFLAGS := -O2 -Iinclude/
 export OBJCOPY := objcopy
 
@@ -24,7 +24,7 @@ loader.img: $(build-dir)
 
 kernel.img: $(build-dir) kernel/kernel.lds
 	$(CC) $(KCFLAGS) $(KLDFLAGS) -T kernel/kernel.lds -o kernel.img \
-	-Wl,-whole-archive built-in.a -Wl,-no-whole-archive
+	-Wl,-whole-archive built-in.a -Wl,-no-whole-archive -lgcc
 
 PHONY += $(build-dir)
 $(build-dir):
